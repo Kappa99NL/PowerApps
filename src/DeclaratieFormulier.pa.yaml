@@ -1,0 +1,335 @@
+# Declaratieformulier - paste-ready Power Apps canvas controls (Power Fx YAML).
+#
+# How to use: in Power Apps Studio, open a blank screen, right-click the screen
+# in the Tree view and choose "Paste code" (or select the screen and Ctrl+V),
+# then paste this whole file. See README.md for the required data sources.
+#
+# Data sources expected (names can be changed, see README.md):
+#   Klanten      - Postcode (text), Huisnummer (text), Klantnummer (text)
+#   Facturen     - Factuurnummer (text), Klantnummer (text)
+#   Declaraties  - the table the form is written to
+#
+# BTW rate: 21% (0.21) - used in lblSubtotaal/lblBtwBedrag/lblTotaal and btnOpslaan.
+- conDeclaratie:
+    Control: GroupContainer@1.3.0
+    Variant: AutoLayout
+    Properties:
+      X: =0
+      Y: =0
+      Width: =Parent.Width
+      Height: =Parent.Height
+      Fill: =RGBA(245, 246, 248, 1)
+      LayoutMode: =LayoutMode.Auto
+      LayoutDirection: =LayoutDirection.Vertical
+      LayoutGap: =14
+      LayoutOverflowY: =LayoutOverflow.Scroll
+      PaddingTop: =24
+      PaddingBottom: =24
+      PaddingLeft: =32
+      PaddingRight: =32
+    Children:
+      - lblTitel:
+          Control: Label@2.5.1
+          Properties:
+            Text: ="Declaratie invoeren"
+            Size: =22
+            FontWeight: =FontWeight.Semibold
+            Height: =44
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+
+      # --- Rij 1: klant zoeken op postcode + huisnummer -------------------------
+      - conKlantZoeken:
+          Control: GroupContainer@1.3.0
+          Variant: AutoLayout
+          Properties:
+            LayoutMode: =LayoutMode.Auto
+            LayoutDirection: =LayoutDirection.Horizontal
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =12
+            Height: =48
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - txtPostcode:
+                Control: Classic/TextInput@2.3.2
+                Properties:
+                  Default: =""
+                  HintText: ="Postcode (bijv. 1234AB)"
+                  Width: =200
+                  Height: =40
+            - txtHuisnummer:
+                Control: Classic/TextInput@2.3.2
+                Properties:
+                  Default: =""
+                  HintText: ="Huisnummer"
+                  Width: =140
+                  Height: =40
+            - btnZoekKlant:
+                Control: Classic/Button@2.2.0
+                Properties:
+                  Text: ="Zoek klant"
+                  Width: =140
+                  Height: =40
+                  DisplayMode: =If(IsBlank(Trim(txtPostcode.Text)) || IsBlank(Trim(txtHuisnummer.Text)), DisplayMode.Disabled, DisplayMode.Edit)
+                  OnSelect: |-
+                    =With(
+                        {
+                            pc: Upper(Substitute(Trim(txtPostcode.Text), " ", "")),
+                            hn: Upper(Substitute(Trim(txtHuisnummer.Text), " ", ""))
+                        },
+                        Set(gblKlant, LookUp(Klanten, Postcode = pc && Huisnummer = hn))
+                    );
+                    Reset(cmbFactuur);
+                    If(
+                        IsBlank(gblKlant),
+                        Notify("Geen klant gevonden voor deze postcode en dit huisnummer.", NotificationType.Warning)
+                    )
+            - lblKlantnummer:
+                Control: Label@2.5.1
+                Properties:
+                  Text: |-
+                    =If(IsBlank(gblKlant), "Nog geen klant gevonden", "Klantnummer: " & gblKlant.Klantnummer)
+                  FontWeight: =If(IsBlank(gblKlant), FontWeight.Normal, FontWeight.Semibold)
+                  Color: =If(IsBlank(gblKlant), RGBA(110, 110, 110, 1), RGBA(16, 124, 16, 1))
+                  Height: =40
+                  FillPortions: =1
+                  LayoutMinWidth: =200
+
+      # --- Rij 2: factuur zoeken en selecteren ----------------------------------
+      - cmbFactuur:
+          Control: Classic/ComboBox@2.4.0
+          Properties:
+            Items: |-
+              =With({k: gblKlant.Klantnummer}, Filter(Facturen, Klantnummer = k))
+            SearchFields: =["Factuurnummer"]
+            DisplayFields: =["Factuurnummer"]
+            IsSearchable: =true
+            SelectMultiple: =false
+            DefaultSelectedItems: =Blank()
+            InputTextPlaceholder: =If(IsBlank(gblKlant), "Zoek eerst een klant", "Zoek en selecteer een factuur")
+            DisplayMode: =If(IsBlank(gblKlant), DisplayMode.Disabled, DisplayMode.Edit)
+            Height: =40
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+
+      # --- Kolomkoppen -----------------------------------------------------------
+      - conKoppen:
+          Control: GroupContainer@1.3.0
+          Variant: AutoLayout
+          Properties:
+            LayoutMode: =LayoutMode.Auto
+            LayoutDirection: =LayoutDirection.Horizontal
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =12
+            Height: =28
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - lblKopOmschrijving:
+                Control: Label@2.5.1
+                Properties:
+                  Text: ="Omschrijving"
+                  FontWeight: =FontWeight.Semibold
+                  FillPortions: =1
+                  Height: =28
+            - lblKopBedrag:
+                Control: Label@2.5.1
+                Properties:
+                  Text: ="Bedrag (excl. BTW)"
+                  FontWeight: =FontWeight.Semibold
+                  Width: =180
+                  Height: =28
+            - lblKopBtw:
+                Control: Label@2.5.1
+                Properties:
+                  Text: ="BTW 21%"
+                  FontWeight: =FontWeight.Semibold
+                  Width: =140
+                  Height: =28
+
+      # --- Regel 1: vrije omschrijving + bedrag + BTW -----------------------------
+      - conRegel1:
+          Control: GroupContainer@1.3.0
+          Variant: AutoLayout
+          Properties:
+            LayoutMode: =LayoutMode.Auto
+            LayoutDirection: =LayoutDirection.Horizontal
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =12
+            Height: =48
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - txtOmschrijving:
+                Control: Classic/TextInput@2.3.2
+                Properties:
+                  Default: =""
+                  HintText: ="Korte omschrijving van de declaratie"
+                  FillPortions: =1
+                  Height: =40
+            - txtBedrag:
+                Control: Classic/TextInput@2.3.2
+                Properties:
+                  Default: =""
+                  HintText: ="0,00"
+                  Format: =TextFormat.Number
+                  Align: =Align.Right
+                  Width: =180
+                  Height: =40
+            - tglBtw:
+                Control: Classic/Toggle@2.1.0
+                Properties:
+                  Default: =false
+                  TrueText: ="BTW"
+                  FalseText: ="Geen BTW"
+                  Width: =140
+                  Height: =40
+
+      # --- Regel 2: vaste tekst 'Administratiekosten' + bedrag + BTW ------------
+      - conRegel2:
+          Control: GroupContainer@1.3.0
+          Variant: AutoLayout
+          Properties:
+            LayoutMode: =LayoutMode.Auto
+            LayoutDirection: =LayoutDirection.Horizontal
+            LayoutAlignItems: =LayoutAlignItems.Center
+            LayoutGap: =12
+            Height: =48
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+          Children:
+            - lblAdministratiekosten:
+                Control: Label@2.5.1
+                Properties:
+                  Text: ="Administratiekosten"
+                  PaddingLeft: =12
+                  Fill: =RGBA(234, 236, 240, 1)
+                  BorderColor: =RGBA(200, 200, 200, 1)
+                  BorderThickness: =1
+                  FillPortions: =1
+                  Height: =40
+            - txtBedragAdmin:
+                Control: Classic/TextInput@2.3.2
+                Properties:
+                  Default: =""
+                  HintText: ="0,00"
+                  Format: =TextFormat.Number
+                  Align: =Align.Right
+                  Width: =180
+                  Height: =40
+            - tglBtwAdmin:
+                Control: Classic/Toggle@2.1.0
+                Properties:
+                  Default: =false
+                  TrueText: ="BTW"
+                  FalseText: ="Geen BTW"
+                  Width: =140
+                  Height: =40
+
+      # --- Totalen --------------------------------------------------------------
+      - lblSubtotaal:
+          Control: Label@2.5.1
+          Properties:
+            Text: |-
+              ="Subtotaal: " & Text(
+                  Coalesce(Value(txtBedrag.Text), 0) + Coalesce(Value(txtBedragAdmin.Text), 0),
+                  "[$-nl-NL]€ #.##0,00"
+              )
+            Align: =Align.Right
+            Height: =28
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+      - lblBtwBedrag:
+          Control: Label@2.5.1
+          Properties:
+            Text: |-
+              ="BTW (21%): " & Text(
+                  If(tglBtw.Value, Coalesce(Value(txtBedrag.Text), 0) * 0.21, 0) +
+                  If(tglBtwAdmin.Value, Coalesce(Value(txtBedragAdmin.Text), 0) * 0.21, 0),
+                  "[$-nl-NL]€ #.##0,00"
+              )
+            Align: =Align.Right
+            Height: =28
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+      - lblTotaal:
+          Control: Label@2.5.1
+          Properties:
+            Text: |-
+              =With(
+                  {b1: Coalesce(Value(txtBedrag.Text), 0), b2: Coalesce(Value(txtBedragAdmin.Text), 0)},
+                  "Totaal: " & Text(
+                      b1 + b2 + If(tglBtw.Value, b1 * 0.21, 0) + If(tglBtwAdmin.Value, b2 * 0.21, 0),
+                      "[$-nl-NL]€ #.##0,00"
+                  )
+              )
+            Size: =18
+            FontWeight: =FontWeight.Bold
+            Align: =Align.Right
+            Height: =40
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.Stretch
+
+      # --- Opslaan: schrijf naar Declaraties en maak het formulier leeg --------
+      - btnOpslaan:
+          Control: Classic/Button@2.2.0
+          Properties:
+            Text: ="Opslaan"
+            Width: =200
+            Height: =44
+            FillPortions: =0
+            AlignInContainer: =AlignInContainer.End
+            DisplayMode: |-
+              =If(
+                  !IsBlank(gblKlant) &&
+                  !IsBlank(cmbFactuur.Selected) &&
+                  !IsBlank(Trim(txtOmschrijving.Text)) &&
+                  !IsBlank(Value(txtBedrag.Text)),
+                  DisplayMode.Edit,
+                  DisplayMode.Disabled
+              )
+            OnSelect: |-
+              =With(
+                  {
+                      b1: Round(Value(txtBedrag.Text), 2),
+                      b2: Round(Coalesce(Value(txtBedragAdmin.Text), 0), 2)
+                  },
+                  With(
+                      {
+                          btw: Round(If(tglBtw.Value, b1 * 0.21, 0) + If(tglBtwAdmin.Value, b2 * 0.21, 0), 2)
+                      },
+                      IfError(
+                          Patch(
+                              Declaraties,
+                              Defaults(Declaraties),
+                              {
+                                  Title: Trim(txtOmschrijving.Text),
+                                  Klantnummer: gblKlant.Klantnummer,
+                                  Postcode: gblKlant.Postcode,
+                                  Huisnummer: gblKlant.Huisnummer,
+                                  Factuurnummer: cmbFactuur.Selected.Factuurnummer,
+                                  Bedrag: b1,
+                                  BTW: tglBtw.Value,
+                                  AdministratieOmschrijving: "Administratiekosten",
+                                  AdministratieBedrag: b2,
+                                  AdministratieBTW: tglBtwAdmin.Value,
+                                  Subtotaal: b1 + b2,
+                                  BTWBedrag: btw,
+                                  Totaal: b1 + b2 + btw
+                              }
+                          ),
+                          Notify("Opslaan mislukt: " & FirstError.Message, NotificationType.Error),
+                          Notify("Declaratie opgeslagen.", NotificationType.Success);
+                          Set(gblKlant, Blank());
+                          Reset(txtPostcode);
+                          Reset(txtHuisnummer);
+                          Reset(cmbFactuur);
+                          Reset(txtOmschrijving);
+                          Reset(txtBedrag);
+                          Reset(tglBtw);
+                          Reset(txtBedragAdmin);
+                          Reset(tglBtwAdmin)
+                      )
+                  )
+              )
